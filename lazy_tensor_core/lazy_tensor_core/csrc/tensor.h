@@ -167,15 +167,15 @@ class LazyTensor {
   void ApplyPendingGraph();
 
   static torch::lazy::Value GetDeviceDataIrValue(const at::Scalar& value,
-                                        lazy_tensors::PrimitiveType type,
+                                        c10::ScalarType  type,
                                         const Device& device);
   static torch::lazy::Value GetIrValueForScalar(const at::Scalar& value,
-                                       lazy_tensors::PrimitiveType type,
+                                       c10::ScalarType  type,
                                        const Device& device);
   static torch::lazy::Value GetIrValueForScalar(const at::Scalar& value,
                                        const Device& device);
   static torch::lazy::Value GetIrValueForScalar(
-      const at::Scalar& value, lazy_tensors::PrimitiveType type,
+      const at::Scalar& value, c10::ScalarType type,
       lazy_tensors::Span<const lazy_tensors::int64> dimensions,
       const Device& device);
   static torch::lazy::Value GetIrValueForScalar(const at::Scalar& value,

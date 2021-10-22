@@ -261,7 +261,7 @@ NodePtr IndexFill(const LazyTensor& base, lazy_tensors::int64 dim,
       << "Fill index is supposed to be a vector";
   return IndexFillOp(
       base.GetIrValue(), dim, index.GetIrValue(),
-      LazyTensor::GetIrValueForScalar(value, base.shape().get().element_type(),
+      LazyTensor::GetIrValueForScalar(value, base.shape().get().at_element_type(),
                                       base.GetDevice()));
 }
 

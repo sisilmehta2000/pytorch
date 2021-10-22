@@ -86,7 +86,7 @@ class ShapeUtil {
     return lhs == rhs;
   }
 
-  static Shape ChangeElementType(const Shape& original, PrimitiveType type) {
+  static Shape ChangeElementType(const Shape& original, c10::ScalarType type) {
     if (original.IsTuple()) {
       std::vector<Shape> new_operands;
       new_operands.reserve(original.tuple_shapes_size());
@@ -105,13 +105,13 @@ class ShapeUtil {
     return Shape(shapes);
   }
 
-  static Shape MakeShape(PrimitiveType element_type,
+  static Shape MakeShape(c10::ScalarType element_type,
                          lazy_tensors::Span<const int64> dimensions) {
     return MakeShapeWithDescendingLayout(element_type, dimensions);
   }
 
   static Shape MakeShapeWithLayout(
-      PrimitiveType element_type, lazy_tensors::Span<const int64> dimensions,
+      c10::ScalarType element_type, lazy_tensors::Span<const int64> dimensions,
       lazy_tensors::Span<const int64> minor_to_major,
       lazy_tensors::Span<const Tile> tiles = {}, int64 element_size_in_bits = 0,
       int64 memory_space = 0) {
@@ -119,8 +119,9 @@ class ShapeUtil {
     LTC_CHECK_EQ(element_size_in_bits, 0);
     LTC_CHECK_EQ(memory_space, 0);
     LTC_CHECK_EQ(dimensions.size(), minor_to_major.size());
-    LTC_CHECK(element_type != PrimitiveType::INVALID &&
-              element_type != PrimitiveType::TUPLE);
+    // ScalarType doesn't include invalid or tuple, so we can assume this
+    // LTC_CHECK(element_type != PrimitiveType::INVALID &&
+    //           element_type != PrimitiveType::TUPLE);
     Layout layout;
     for (int64 dimension_number : minor_to_major) {
       layout.add_minor_to_major(dimension_number);
@@ -131,7 +132,7 @@ class ShapeUtil {
   }
 
   static Shape MakeShapeWithDescendingLayout(
-      PrimitiveType element_type, lazy_tensors::Span<const int64> dimensions) {
+      c10::ScalarType element_type, lazy_tensors::Span<const int64> dimensions) {
     std::vector<int64> layout(dimensions.size());
     std::iota(layout.rbegin(), layout.rend(), static_cast<int64>(0));
     return MakeShapeWithLayout(element_type, dimensions, layout);
@@ -164,7 +165,7 @@ class ShapeUtil {
   }
 
   static bool ElementIsIntegral(const Shape& shape) {
-    return primitive_util::IsIntegralType(shape.element_type());
+    return isIntegralType(shape.at_element_type(), /* include_bool */ true);
   }
 
   // Variants of ForEach(Mutable)Subshape which propagate Status from the

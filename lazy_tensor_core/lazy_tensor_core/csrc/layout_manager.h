@@ -12,7 +12,7 @@ namespace torch_lazy_tensors {
 lazy_tensors::Shape MakeTorchTensorLayout(
     lazy_tensors::Span<const lazy_tensors::int64> dimensions,
     lazy_tensors::Span<const bool> dynamic_dimensions,
-    lazy_tensors::PrimitiveType type);
+    c10::ScalarType type);
 
 // Create an shape with the given dimensions and type, suitable to be used in
 // the specified device type. The type of device can affect the choice of the
@@ -21,6 +21,6 @@ lazy_tensors::Shape MakeTorchTensorLayout(
 lazy_tensors::Shape MakeArrayShapeFromDimensions(
     lazy_tensors::Span<const lazy_tensors::int64> dimensions,
     lazy_tensors::Span<const bool> dynamic_dimensions,
-    lazy_tensors::PrimitiveType type, DeviceType device_type);
+    c10::ScalarType type, DeviceType device_type);
 
 }  // namespace torch_lazy_tensors

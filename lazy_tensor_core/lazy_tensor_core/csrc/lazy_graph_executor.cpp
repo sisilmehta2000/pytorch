@@ -268,10 +268,10 @@ class DeviceContextArena {
     devctx->running_seed = kSeedAdd + kSeedMul * devctx->running_seed;
     // Compose new seeds from the root seed, to avoid creating too many
     // computation parameters which might overflow the device capacity.
-    torch::lazy::Value k = ir::ops::ScalarOp(MakeIntScalar(kSeedMul),
-                                    MakeLtcPrimitiveType(kSeedType, &device));
-    torch::lazy::Value b = ir::ops::ScalarOp(MakeIntScalar(kSeedAdd),
-                                    MakeLtcPrimitiveType(kSeedType, &device));
+    torch::lazy::Value k =
+        ir::ops::ScalarOp(MakeIntScalar(kSeedMul), kSeedType);
+    torch::lazy::Value b =
+        ir::ops::ScalarOp(MakeIntScalar(kSeedAdd), kSeedType);
     devctx->seed_ir_value = b + k * devctx->seed_ir_value;
     return devctx->seed_ir_value;
   }
@@ -330,8 +330,8 @@ class DeviceContextArena {
   }
 
   torch::lazy::Value IrValueFromScalar(const at::Scalar& value,
-                              at::ScalarType scalar_type,
-                              const Device& device) {
+                                       at::ScalarType scalar_type,
+                                       const Device& device) {
     at::Tensor tensor =
         at::scalar_tensor(value, at::TensorOptions(scalar_type));
     lazy_tensors::ComputationClient::DataPtr device_data =
@@ -975,7 +975,8 @@ std::vector<at::Tensor> LazyGraphExecutor::GetTensorsOpByOp(
     DebugUtil::SaveTensorsGraphInfo("GetTensorsOpByOp", *tensors,
                                     &coll.indices);
 
-    std::vector<torch::lazy::Value> roots = CollectRoots(*tensors, coll.indices);
+    std::vector<torch::lazy::Value> roots =
+        CollectRoots(*tensors, coll.indices);
     async_tensors_data =
         OpByOpExecutor::Get()->Execute(roots, coll.device.ToString(), {});
   }

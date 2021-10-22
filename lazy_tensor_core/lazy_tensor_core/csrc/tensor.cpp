@@ -128,7 +128,7 @@ lazy_tensors::int64 LazyTensor::size(lazy_tensors::int64 dim) const {
 at::ScalarType LazyTensor::dtype() const {
   return data()->logical_element_type
              ? *data()->logical_element_type
-             : TensorTypeFromLtcType(shape().get().element_type());
+             : shape().get().at_element_type();
 }
 
 c10::optional<at::ScalarType> LazyTensor::dtype_optional() const {
@@ -149,7 +149,7 @@ lazy_tensors::util::MaybeRef<lazy_tensors::Shape> LazyTensor::shape() const {
   LTC_CHECK(data()->tensor_data);
   const Device& device = GetDevice();
   return lazy_tensors::ShapeUtil::MakeShape(
-      MakeLtcPrimitiveType(data()->tensor_data->type().scalarType(), &device),
+      data()->tensor_data->type().scalarType(),
       Helpers::I64List(data()->tensor_data->sizes()));
 }
 
@@ -157,7 +157,7 @@ lazy_tensors::Shape LazyTensor::shape_with_layout() const {
   auto tensor_shape = shape();
   return MakeArrayShapeFromDimensions(
       tensor_shape.get().dimensions(), tensor_shape.get().dynamic_dimensions(),
-      tensor_shape.get().element_type(), GetDevice().hw_type);
+      tensor_shape.get().at_element_type(), GetDevice().hw_type);
 }
 
 const Device& LazyTensor::GetDevice() const { return data()->device; }
@@ -259,9 +259,10 @@ void LazyTensor::SetIrValue(torch::lazy::Value ir_value) {
 
 void LazyTensor::SetInPlaceIrValue(torch::lazy::Value ir_value) {
   auto tensor_shape = shape();
-  if (tensor_shape.get().element_type() != ir::GetShapeFromTsValue(ir_value).element_type()) {
-    ir_value = torch::lazy::MakeNode<ir::ops::Cast>(ir_value,
-                                           tensor_shape.get().element_type());
+  if (tensor_shape.get().at_element_type() !=
+      ir::GetShapeFromTsValue(ir_value).at_element_type()) {
+    ir_value = torch::lazy::MakeNode<ir::ops::Cast>(
+        ir_value, tensor_shape.get().at_element_type());
   }
   SetIrValue(std::move(ir_value));
 }
@@ -327,15 +328,13 @@ c10::optional<at::Tensor> LazyTensor::CurrentTensorData() const {
 }
 
 torch::lazy::Value LazyTensor::GetIrValueForTensor(const at::Tensor& tensor,
-                                          const Device& device) const {
+                                                   const Device& device) const {
   lazy_tensors::ComputationClient::DataPtr data;
   bool read_only = false;
   if (tensor.dim() == 0 && tensor.numel() == 1) {
     at::Scalar value = tensor.item();
     if (IsSpecialScalar(value)) {
-      return ir::ops::ScalarOp(
-          std::move(value),
-          MakeLtcPrimitiveType(tensor.scalar_type(), &device));
+      return ir::ops::ScalarOp(std::move(value), tensor.scalar_type());
     }
     data = LazyGraphExecutor::Get()->GetDeviceData(tensor.cpu(), device);
     read_only = true;
@@ -347,19 +346,18 @@ torch::lazy::Value LazyTensor::GetIrValueForTensor(const at::Tensor& tensor,
 }
 
 torch::lazy::Value LazyTensor::GetDeviceDataIrValue(const at::Scalar& value,
-                                           lazy_tensors::PrimitiveType type,
-                                           const Device& device) {
+                                                    c10::ScalarType type,
+                                                    const Device& device) {
   lazy_tensors::ComputationClient::DataPtr data =
-      LazyGraphExecutor::Get()->GetDeviceData(
-          value, TensorTypeFromLtcType(type), device);
+      LazyGraphExecutor::Get()->GetDeviceData(value, type, device);
   data->SetInfo(std::make_shared<LazyGraphExecutor::DeviceDataInfo>(
       /*tensor_id=*/-1, /*read_only=*/true));
   return torch::lazy::MakeNode<ir::ops::DeviceData>(std::move(data));
 }
 
 torch::lazy::Value LazyTensor::GetIrValueForScalar(const at::Scalar& value,
-                                          lazy_tensors::PrimitiveType type,
-                                          const Device& device) {
+                                                   c10::ScalarType type,
+                                                   const Device& device) {
   if (IsSpecialScalar(value)) {
     return ir::ops::ScalarOp(std::move(value), type);
   }
@@ -367,13 +365,12 @@ torch::lazy::Value LazyTensor::GetIrValueForScalar(const at::Scalar& value,
 }
 
 torch::lazy::Value LazyTensor::GetIrValueForScalar(const at::Scalar& value,
-                                          const Device& device) {
-  return GetIrValueForScalar(
-      value, MakeLtcPrimitiveType(GetScalarType(value), &device), device);
+                                                   const Device& device) {
+  return GetIrValueForScalar(value, GetScalarType(value), device);
 }
 
 torch::lazy::Value LazyTensor::GetIrValueForScalar(
-    const at::Scalar& value, lazy_tensors::PrimitiveType type,
+    const at::Scalar& value, c10::ScalarType type,
     lazy_tensors::Span<const lazy_tensors::int64> dimensions,
     const Device& device) {
   torch::lazy::Value ir_value = GetIrValueForScalar(value, type, device);
@@ -385,20 +382,18 @@ torch::lazy::Value LazyTensor::GetIrValueForScalar(
   return ir_value;
 }
 
-torch::lazy::Value LazyTensor::GetIrValueForScalar(const at::Scalar& value,
-                                          const lazy_tensors::Shape& shape,
-                                          const Device& device) {
-  return GetIrValueForScalar(value, shape.element_type(), shape.dimensions(),
+torch::lazy::Value LazyTensor::GetIrValueForScalar(
+    const at::Scalar& value, const lazy_tensors::Shape& shape,
+    const Device& device) {
+  return GetIrValueForScalar(value, shape.at_element_type(), shape.dimensions(),
                              device);
 }
 
 torch::lazy::Value LazyTensor::GetIrValueForScalar(
     const at::Scalar& value, const lazy_tensors::Shape& shape,
     c10::optional<at::ScalarType> logical_element_type, const Device& device) {
-  lazy_tensors::PrimitiveType type =
-      logical_element_type
-          ? MakeLtcPrimitiveType(*logical_element_type, &device)
-          : shape.element_type();
+  c10::ScalarType type =
+      logical_element_type ? *logical_element_type : shape.at_element_type();
   return GetIrValueForScalar(value, type, shape.dimensions(), device);
 }
 
@@ -412,16 +407,17 @@ View::IrNode LazyTensor::GetViewUpdate(
   return ir_value_updated;
 }
 
-std::shared_ptr<View> LazyTensor::UpdateView(std::shared_ptr<View> view,
-                                             torch::lazy::Value ir_value) const {
-  if (ir::GetShapeFromTsValue(ir_value).dimensions() != view->shape().dimensions()) {
+std::shared_ptr<View> LazyTensor::UpdateView(
+    std::shared_ptr<View> view, torch::lazy::Value ir_value) const {
+  if (ir::GetShapeFromTsValue(ir_value).dimensions() !=
+      view->shape().dimensions()) {
     LTC_CHECK_EQ(lazy_tensors::util::Multiply<lazy_tensors::int64>(
                      ir::GetShapeFromTsValue(ir_value).dimensions()),
                  lazy_tensors::util::Multiply<lazy_tensors::int64>(
                      view->shape().dimensions()));
 
-    ViewInfo view_info(ViewInfo::Type::kReshape, ir::GetShapeFromTsValue(ir_value),
-                       view->shape());
+    ViewInfo view_info(ViewInfo::Type::kReshape,
+                       ir::GetShapeFromTsValue(ir_value), view->shape());
     view = view->CreateSubView(view_info.shape, view_info);
   }
   view->Update(std::move(ir_value));
@@ -442,8 +438,8 @@ void LazyTensor::ModifyCurrentView(ViewInfo view_info) const {
   // in place, we need to turn this existing tensor into a view.
   torch::lazy::Value ir_value = GetIrValue();
   std::shared_ptr<Alias> alias = std::make_shared<Alias>(ir_value);
-  data()->view =
-      std::make_shared<View>(ir::GetShapeFromTsValue(ir_value), alias, std::move(view_info));
+  data()->view = std::make_shared<View>(ir::GetShapeFromTsValue(ir_value),
+                                        alias, std::move(view_info));
   AssignIrValue(torch::lazy::Value());
 }
 
@@ -456,10 +452,11 @@ std::shared_ptr<View> LazyTensor::CreateView(ViewInfo view_info) const {
   // Node, and using the same alias for the created IR Node.
   torch::lazy::Value ir_value = GetIrValue();
   std::shared_ptr<Alias> alias = std::make_shared<Alias>(ir_value);
-  ViewInfo this_view_info(ViewInfo::Type::kNoOp, ir::GetShapeFromTsValue(ir_value),
+  ViewInfo this_view_info(ViewInfo::Type::kNoOp,
+                          ir::GetShapeFromTsValue(ir_value),
                           ir::GetShapeFromTsValue(ir_value));
-  data()->view = std::make_shared<View>(ir::GetShapeFromTsValue(ir_value), alias,
-                                        std::move(this_view_info));
+  data()->view = std::make_shared<View>(ir::GetShapeFromTsValue(ir_value),
+                                        alias, std::move(this_view_info));
   AssignIrValue(torch::lazy::Value());
   return std::make_shared<View>(view_info.shape, alias, view_info);
 }
@@ -548,7 +545,6 @@ void LazyTensor::UpdateFromTensorOut(const LazyTensor& tensor) {
   SetIrValue(tensor.GetIrValue());
 }
 
-
 std::vector<LazyTensor> LazyTensor::CreateTensors(
     const std::vector<at::Tensor>& tensors,
     const std::vector<std::string>& devices) {
@@ -591,7 +587,8 @@ torch::lazy::Value LazyTensor::MaybeCastIrValue(
   }
   if (logical_element_type &&
       RequiresRawTypeCasting(*logical_element_type, &device)) {
-    ir_value = torch::lazy::MakeNode<ir::ops::Cast>(ir_value, *logical_element_type);
+    ir_value =
+        torch::lazy::MakeNode<ir::ops::Cast>(ir_value, *logical_element_type);
   }
   return ir_value;
 }
@@ -624,7 +621,8 @@ LazyTensor LazyTensor::CreateFrom(
   return Create(std::move(ir_value), GetDevice(), logical_element_type_opt);
 }
 
-LazyTensor LazyTensor::CreateFrom(torch::lazy::Value ir_value, const Device& device,
+LazyTensor LazyTensor::CreateFrom(torch::lazy::Value ir_value,
+                                  const Device& device,
                                   at::ScalarType logical_element_type) const {
   ir_value =
       MaybeCastIrValue(std::move(ir_value), device, logical_element_type);
