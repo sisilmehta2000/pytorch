@@ -684,6 +684,7 @@ std::vector<LazyTensor> broadcast_tensors(
   return tensors.front().MakeOutputTensors(node);
 }
 
+<<<<<<< HEAD
 LazyTensor cat(lazy_tensors::Span<const LazyTensor> tensors,
                lazy_tensors::int64 dim) {
   // Shape checks for cat:
@@ -717,6 +718,8 @@ LazyTensor cat(lazy_tensors::Span<const LazyTensor> tensors,
   return tensors[0].CreateFrom(torch::lazy::MakeNode<ir::ops::Cat>(values, dim));
 }
 
+=======
+>>>>>>> 0eb5f8b09c (WIP cat)
 LazyTensor ceil(const LazyTensor& input) {
   return input.CreateFrom(ir::ops::Ceil(input.GetIrValue()));
 }
