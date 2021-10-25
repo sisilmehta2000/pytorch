@@ -1,9 +1,9 @@
 #include <ATen/ATen.h>
+#include <ATen/native/Resize.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/PeerToPeerAccess.h>
 #include <torch/library.h>
 #include <ATen/native/cuda/Resize.h>
-#include <ATen/native/ResizeCommon.h>
 
 namespace at {
 namespace native {
@@ -40,25 +40,37 @@ void resize_bytes_cuda(StorageImpl* storage, size_t size_bytes) {
   storage->set_nbytes(size_bytes);
 }
 
+TensorImpl* resize_impl_cuda_(
+    TensorImpl* self,
+    IntArrayRef size,
+    c10::optional<IntArrayRef> stride,
+    bool device_guard) {
+  cuda::OptionalCUDAGuard guard;
+  if (device_guard) {
+    guard.set_index(self->storage().device().index());
+  }
+  resize_impl_template_<&maybe_resize_storage_cuda, &select_storage_size_default>(
+      self, size, stride);
+  return self;
+}
+
 const Tensor& resize_cuda_(
     const Tensor& self,
     IntArrayRef size,
     c10::optional<MemoryFormat> optional_memory_format) {
-  if (self.has_names()) {
-    return resize_named_tensor_(self, size, optional_memory_format);
-  }
-  auto* self_ = self.unsafeGetTensorImpl();
-  resize_impl_cuda_(self_, size, /*strides=*/c10::nullopt);
-  if (optional_memory_format.has_value()) {
-    auto memory_format =
-        optional_memory_format.value();
-    TORCH_CHECK(
-        memory_format != MemoryFormat::Preserve,
-        "Unsupported memory format",
-        memory_format);
-    self_->empty_tensor_restride(memory_format);
-  }
+  resize_template<&resize_impl_cuda_>(self, size, c10::nullopt, optional_memory_format, true);
   return self;
 }
+
+const Tensor& resize_with_strides_cuda_(
+    const Tensor& self,
+    IntArrayRef size,
+    IntArrayRef strides) {
+  cuda::OptionalCUDAGuard guard(self.storage().device().index());
+  resize_template<&resize_impl_tryreuse_<&maybe_resize_storage_cuda>>(
+      self, size, strides, c10::nullopt, true);
+  return self;
+}
+
 } // namespace native
 } // namespace at
