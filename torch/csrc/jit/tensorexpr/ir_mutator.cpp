@@ -481,6 +481,22 @@ StmtPtr IRMutator::mutate(FreePtr v) {
   return v;
 }
 
+StmtPtr IRMutator::mutate(PlacementAllocatePtr v) {
+  BufPtr src_buf = v->src_buf();
+  BufPtr src_buf_new = to<Buf>(src_buf->accept_mutator(this));
+  TORCH_INTERNAL_ASSERT(
+      src_buf_new, buildErrorMessage("IRMutator produced null for Buf."));
+  v->set_src_buf(src_buf_new);
+
+  BufPtr dest_buf = v->dest_buf();
+  BufPtr dest_buf_new = to<Buf>(dest_buf->accept_mutator(this));
+  TORCH_INTERNAL_ASSERT(
+      dest_buf_new, buildErrorMessage("IRMutator produced null for Buf."));
+  v->set_dest_buf(dest_buf_new);
+
+  return v;
+}
+
 StmtPtr IRMutator::mutate(LetPtr v) {
   VarPtr var_old = v->var();
   VarPtr var_new = to<Var>(var_old->accept_mutator(this));

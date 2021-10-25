@@ -388,6 +388,42 @@ class TORCH_API Allocate : public StmtNode<Allocate> {
   // TODO: add memory types.
 };
 
+// PlacementAllocate is a variation of the Allocate operator in NNC IR. It does
+// not allocate memory but reuse the memory of another(dest) buffer for the src
+// buffer.
+class TORCH_API PlacementAllocate : public StmtNode<PlacementAllocate> {
+ public:
+  static PlacementAllocatePtr make(
+      const BufHandle& src_buf_handle,
+      const BufHandle& dest_buf_handle) {
+    return alloc<PlacementAllocate>(
+        src_buf_handle.node(), dest_buf_handle.node());
+  }
+
+  BufPtr src_buf() const {
+    return src_buf_;
+  }
+
+  BufPtr dest_buf() const {
+    return dest_buf_;
+  }
+
+  void set_src_buf(BufPtr buf) {
+    src_buf_ = buf;
+  }
+
+  void set_dest_buf(BufPtr buf) {
+    dest_buf_ = buf;
+  }
+
+  explicit PlacementAllocate(BufPtr src_buf, BufPtr dest_buf)
+      : src_buf_(src_buf), dest_buf_(dest_buf) {}
+
+ private:
+  BufPtr src_buf_;
+  BufPtr dest_buf_;
+};
+
 // Free the specific buffer. It is an error.
 class TORCH_API Free : public StmtNode<Free> {
  public:
