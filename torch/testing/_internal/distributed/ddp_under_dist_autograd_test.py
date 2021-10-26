@@ -561,7 +561,6 @@ class DdpComparisonTest(CommonDdpComparisonTest):
                         msg=f"The grads for param {param} are different under local "
                         f"and dist autograd: {param.grad} \n---\n {grads_dict[param]} for iteration {i}",
                     )
-        dist.destroy_process_group()
 
     @requires_gloo()
     @dist_init
